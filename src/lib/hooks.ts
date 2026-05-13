@@ -4,26 +4,31 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { type ApiClient, ApiError, createApiClient } from './api';
 import type {
+  BatchStateResponse,
   Conversation,
-  ConversationDetailResponse,
-  Draft,
+  DeadLetter,
+  MeResponse,
   QueueResponse,
+  SentHistoryItem,
+  TabKey,
 } from './types';
 
-export function useApiKey() {
-  const [apiKey, setApiKeyState] = useState('');
+/* ------------------------------------------------------------------ */
+/*  useApiKey — persist review token in localStorage                   */
+/* ------------------------------------------------------------------ */
 
-  useEffect(() => {
+export function useApiKey() {
+  const [apiKey, setApiKeyState] = useState(() => {
+    if (typeof window === 'undefined') return '';
     const params = new URLSearchParams(window.location.search);
-    const fromUrl = params.get('api_key');
+    const fromUrl = params.get('t') || params.get('api_key');
     const fromStorage = localStorage.getItem('reviewApiKey');
     if (fromUrl) {
-      setApiKeyState(fromUrl);
       localStorage.setItem('reviewApiKey', fromUrl);
-    } else if (fromStorage) {
-      setApiKeyState(fromStorage);
+      return fromUrl;
     }
-  }, []);
+    return fromStorage ?? '';
+  });
 
   const setApiKey = useCallback((key: string) => {
     setApiKeyState(key);
@@ -32,6 +37,36 @@ export function useApiKey() {
 
   return { apiKey, setApiKey };
 }
+
+/* ------------------------------------------------------------------ */
+/*  useToast — simple toast notification state                         */
+/* ------------------------------------------------------------------ */
+
+export interface ToastItem {
+  id: number;
+  message: string;
+  kind: 'ok' | 'warn' | 'err';
+}
+
+let _toastSeq = 0;
+
+export function useToast() {
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  const addToast = useCallback((message: string, kind: 'ok' | 'warn' | 'err' = 'ok') => {
+    const id = ++_toastSeq;
+    setToasts((prev) => [...prev, { id, message, kind }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  }, []);
+
+  return { toasts, addToast };
+}
+
+/* ------------------------------------------------------------------ */
+/*  useReviewState — V1-style state management with tabs               */
+/* ------------------------------------------------------------------ */
 
 export function useReviewState(apiKey: string) {
   const [apiBaseUrl] = useState(
@@ -44,12 +79,14 @@ export function useReviewState(apiKey: string) {
   );
 
   const [status, setStatus] = useState('Disconnected');
+  const [tab, setTab] = useState<TabKey>('replies');
+  const [clientFilter, setClientFilter] = useState('');
   const [queue, setQueue] = useState<QueueResponse | null>(null);
-  const [stateFilter, setStateFilter] = useState('');
-  const [selectedConversation, setSelectedConversation] =
-    useState<Conversation | null>(null);
-  const [selectedDraft, setSelectedDraft] = useState<Draft | null>(null);
-  const [sentHistory, setSentHistory] = useState<Draft[] | null>(null);
+  const [sentHistory, setSentHistory] = useState<SentHistoryItem[] | null>(null);
+  const [deadLetters, setDeadLetters] = useState<DeadLetter[] | null>(null);
+  const [batchState, setBatchState] = useState<BatchStateResponse | null>(null);
+  const [me, setMe] = useState<MeResponse | null>(null);
+  const [lastUpdate, setLastUpdate] = useState<string>('');
 
   const clientRef = useRef<ApiClient | null>(null);
 
@@ -60,6 +97,8 @@ export function useReviewState(apiKey: string) {
       clientRef.current = null;
     }
   }, [apiKey, apiBaseUrl]);
+
+  /* ---- Error wrapper ---- */
 
   const withError = useCallback(
     async <T>(fn: () => Promise<T>, loadingMsg?: string): Promise<T | null> => {
@@ -78,213 +117,270 @@ export function useReviewState(apiKey: string) {
     [],
   );
 
-  const loadQueue = useCallback(
-    async (filter?: string) => {
-      const client = clientRef.current;
-      if (!client) {
-        setStatus('Enter an API key.');
-        return;
-      }
-      const result = await withError(
-        () => client.loadQueue(filter ?? stateFilter),
-        'Loading queue...',
-      );
-      if (result) {
-        setQueue(result);
-        setSentHistory(null);
-        const total = Object.values(result.groups).flat().length;
-        setStatus(`Loaded ${total} conversations.`);
-      }
-    },
-    [stateFilter, withError],
-  );
+  /* ---- Data loading ---- */
 
-  const selectConversation = useCallback(
-    async (conversationId: string) => {
-      const client = clientRef.current;
-      if (!client) return;
-      const result = await withError<ConversationDetailResponse>(
-        () => client.loadConversation(conversationId),
-        'Loading conversation...',
-      );
-      if (result) {
-        setSelectedConversation(result.conversation);
-        setSelectedDraft(
-          result.drafts.find((d) => !d.sent) ?? result.drafts[0] ?? null,
-        );
-        setStatus('Ready.');
-      }
-    },
-    [withError],
-  );
-
-  const loadSentHistory = useCallback(async () => {
+  const loadQueue = useCallback(async () => {
     const client = clientRef.current;
     if (!client) {
       setStatus('Enter an API key.');
       return;
     }
     const result = await withError(
+      () => client.loadQueue(),
+      'Loading queue...',
+    );
+    if (result) {
+      setQueue(result);
+      const total = Object.values(result.groups).flat().length;
+      setStatus(`${total} conversations loaded.`);
+      setLastUpdate(new Date().toLocaleTimeString());
+    }
+  }, [withError]);
+
+  const loadSentHistory = useCallback(async () => {
+    const client = clientRef.current;
+    if (!client) return;
+    const result = await withError(
       () => client.loadSentHistory(),
       'Loading sent history...',
     );
     if (result) {
       setSentHistory(result.drafts);
-      setStatus(`Loaded ${result.drafts.length} sent drafts.`);
+      setStatus(`${result.drafts.length} sent drafts.`);
     }
   }, [withError]);
 
-  const saveDraft = useCallback(
-    async (body: string) => {
+  const loadDeadLetters = useCallback(async () => {
+    const client = clientRef.current;
+    if (!client) return;
+    const result = await withError(
+      () => client.loadDeadLetters(),
+      'Loading dead letters...',
+    );
+    if (result) {
+      setDeadLetters(result.dead_letters);
+      setStatus(`${result.dead_letters.length} dead letters.`);
+    }
+  }, [withError]);
+
+  const refreshBatchState = useCallback(async () => {
+    const client = clientRef.current;
+    if (!client) return;
+    try {
+      const bs = await client.loadBatchState();
+      setBatchState(bs);
+    } catch {
+      // batch-state may not be available on all backends
+    }
+  }, []);
+
+  const fetchMe = useCallback(async () => {
+    const client = clientRef.current;
+    if (!client) return;
+    try {
+      const m = await client.loadMe();
+      if (m && m.id) setMe(m);
+    } catch {
+      // me endpoint may not exist
+    }
+  }, []);
+
+  /* ---- Draft actions ---- */
+
+  const sendDraft = useCallback(
+    async (convId: string, draftId: number, body?: string) => {
       const client = clientRef.current;
-      if (!client || !selectedDraft) return;
-      await withError(
-        () => client.saveDraft(selectedDraft.id, body),
-        'Saving draft...',
+      if (!client) return null;
+      const result = await withError(
+        () => client.sendDraft(draftId, body),
+        'Sending...',
       );
-      if (selectedConversation) {
-        await selectConversation(selectedConversation.id);
+      if (result) {
+        await loadQueue();
       }
-      setStatus('Draft saved.');
+      return result;
     },
-    [selectedDraft, selectedConversation, selectConversation, withError],
+    [loadQueue, withError],
   );
 
-  const approveDraft = useCallback(async () => {
-    const client = clientRef.current;
-    if (!client || !selectedDraft) return;
-    await withError(
-      () => client.approveDraft(selectedDraft.id),
-      'Pushing to Missive...',
-    );
-    if (selectedConversation) {
-      await selectConversation(selectedConversation.id);
-    }
-  }, [selectedDraft, selectedConversation, selectConversation, withError]);
-
-  const sendDraft = useCallback(async () => {
-    const client = clientRef.current;
-    if (!client || !selectedDraft) return;
-    await withError(
-      () => client.sendDraft(selectedDraft.id),
-      'Marking sent...',
-    );
-    await loadQueue();
-    if (selectedConversation) {
-      await selectConversation(selectedConversation.id);
-    }
-  }, [
-    selectedDraft,
-    selectedConversation,
-    selectConversation,
-    loadQueue,
-    withError,
-  ]);
-
-  const saveNotes = useCallback(
-    async (notes: string) => {
+  const saveDraftEdit = useCallback(
+    async (draftId: number, body: string) => {
       const client = clientRef.current;
-      if (!client || !selectedConversation) return;
+      if (!client) return;
       await withError(
-        () =>
-          client.saveNotes(
-            selectedConversation.id,
-            notes,
-            selectedConversation.notes_version,
-          ),
-        'Saving notes...',
+        () => client.saveDraft(draftId, body),
+        'Saving edit...',
       );
-      await selectConversation(selectedConversation.id);
-      setStatus('Notes saved.');
+      setStatus('Edit saved.');
     },
-    [selectedConversation, selectConversation, withError],
+    [withError],
   );
 
-  const regenerateDraft = useCallback(async () => {
-    const client = clientRef.current;
-    if (!client || !selectedConversation) return;
-    await withError(
-      () => client.regenerateDraft(selectedConversation.id),
-      'Regenerating draft...',
-    );
-    await loadQueue();
-  }, [selectedConversation, loadQueue, withError]);
+  const regenerateDraft = useCallback(
+    async (convId: string) => {
+      const client = clientRef.current;
+      if (!client) return;
+      await withError(
+        () => client.regenerateDraft(convId),
+        'Regenerating...',
+      );
+      setStatus('Regen kicked off — refresh in 60s.');
+    },
+    [withError],
+  );
 
-  const archiveConversation = useCallback(async () => {
-    const client = clientRef.current;
-    if (!client || !selectedConversation) return;
-    await withError(
-      () => client.archiveConversation(selectedConversation.id),
-      'Archiving...',
-    );
-    setSelectedConversation(null);
-    setSelectedDraft(null);
-    await loadQueue();
-  }, [selectedConversation, loadQueue, withError]);
+  const archiveConversation = useCallback(
+    async (convId: string) => {
+      const client = clientRef.current;
+      if (!client) return;
+      await withError(
+        () => client.archiveConversation(convId),
+        'Archiving...',
+      );
+      await loadQueue();
+    },
+    [loadQueue, withError],
+  );
 
-  const syncConversation = useCallback(async () => {
-    const client = clientRef.current;
-    if (!client || !selectedConversation) return;
-    await withError(
-      () => client.syncConversation(selectedConversation.id),
-      'Syncing...',
-    );
-    setStatus('Sync queued.');
-  }, [selectedConversation, withError]);
+  const saveNote = useCallback(
+    async (convId: string, notes: string, version: number) => {
+      const client = clientRef.current;
+      if (!client) return;
+      await withError(
+        () => client.saveNotes(convId, notes, version),
+        'Saving note...',
+      );
+      setStatus('Note saved.');
+    },
+    [withError],
+  );
 
   const assignConversation = useCallback(
-    async (assignedTo: number | null) => {
+    async (convId: string, userId: number | null) => {
       const client = clientRef.current;
-      if (!client || !selectedConversation) return;
+      if (!client) return;
       await withError(
-        () => client.assignConversation(selectedConversation.id, assignedTo),
+        () => client.assignConversation(convId, userId),
         'Assigning...',
       );
-      await selectConversation(selectedConversation.id);
+      await loadQueue();
     },
-    [selectedConversation, selectConversation, withError],
+    [loadQueue, withError],
   );
 
-  const setBookingSignal = useCallback(
-    async (signal: string | null) => {
+  const bookSlot = useCallback(
+    async (convId: string, startIso: string, endIso: string, email: string, name: string, persona: string) => {
       const client = clientRef.current;
-      if (!client || !selectedConversation) return;
-      await withError(
-        () => client.setBookingSignal(selectedConversation.id, signal),
-        'Saving booking...',
+      if (!client) return null;
+      return await withError(
+        () => client.bookSlot(convId, startIso, endIso, email, name, persona),
+        'Booking...',
       );
-      await selectConversation(selectedConversation.id);
     },
-    [selectedConversation, selectConversation, withError],
+    [withError],
   );
 
-  // Auto-load queue when API key is set
+  const loadFreeSlots = useCallback(
+    async (tz: string) => {
+      const client = clientRef.current;
+      if (!client) return null;
+      return await withError(
+        () => client.loadFreeSlots(tz),
+        'Loading slots...',
+      );
+    },
+    [withError],
+  );
+
+  /* ---- Auto-load & refresh intervals ---- */
+
   useEffect(() => {
     if (apiKey) {
       loadQueue();
+      refreshBatchState();
+      fetchMe();
+
+      const queueInterval = setInterval(loadQueue, 60_000);
+      const batchInterval = setInterval(refreshBatchState, 30_000);
+      return () => {
+        clearInterval(queueInterval);
+        clearInterval(batchInterval);
+      };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKey]);
 
+  /* ---- Derived data ---- */
+
+  const allClients = (() => {
+    if (!queue) return [];
+    const codes = new Set<string>();
+    for (const items of Object.values(queue.groups)) {
+      for (const c of items) {
+        if (c.client) codes.add(c.client);
+      }
+    }
+    return [...codes].sort();
+  })();
+
+  const counts = (() => {
+    if (!queue) return { drafted: 0, nudge_due: 0, needs_josh: 0, awaiting_send: 0, snoozed: 0, total: 0 };
+    const g = queue.groups;
+    return {
+      drafted: (g.drafted || []).length,
+      nudge_due: (g.nudge_due || []).length,
+      needs_josh: (g.needs_josh || []).length,
+      awaiting_send: (g.awaiting_send || []).length,
+      snoozed: (g.snoozed || []).length,
+      total: Object.values(g).flat().length,
+    };
+  })();
+
+  /** Get conversations for the current tab, filtered by client */
+  const getTabItems = useCallback(
+    (tabKey: TabKey): Conversation[] => {
+      if (!queue) return [];
+      const stateMap: Record<string, string> = {
+        replies: 'drafted',
+        nudges: 'nudge_due',
+        needs_josh: 'needs_josh',
+        snoozed: 'snoozed',
+      };
+      const state = stateMap[tabKey];
+      if (!state) return [];
+      const items = queue.groups[state] || [];
+      if (clientFilter) return items.filter((c) => c.client === clientFilter);
+      return items;
+    },
+    [queue, clientFilter],
+  );
+
   return {
     status,
+    tab,
+    setTab,
+    clientFilter,
+    setClientFilter,
     queue,
-    stateFilter,
-    setStateFilter,
-    selectedConversation,
-    selectedDraft,
     sentHistory,
+    deadLetters,
+    batchState,
+    me,
+    lastUpdate,
+    allClients,
+    counts,
+    getTabItems,
     loadQueue,
-    selectConversation,
     loadSentHistory,
-    saveDraft,
-    approveDraft,
+    loadDeadLetters,
+    refreshBatchState,
     sendDraft,
-    saveNotes,
+    saveDraftEdit,
     regenerateDraft,
     archiveConversation,
-    syncConversation,
+    saveNote,
     assignConversation,
-    setBookingSignal,
+    bookSlot,
+    loadFreeSlots,
   };
 }

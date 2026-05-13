@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Inbox Review',
+  title: 'Inbox v2',
   description: 'Second Avenue inbox review dashboard',
 };
 

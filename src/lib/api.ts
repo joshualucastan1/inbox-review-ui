@@ -1,5 +1,10 @@
 import type {
+  BatchStateResponse,
+  BookResponse,
   ConversationDetailResponse,
+  DeadLettersResponse,
+  FreeSlotsResponse,
+  MeResponse,
   QueueResponse,
   SentHistoryResponse,
 } from './types';
@@ -39,6 +44,8 @@ export function createApiClient(baseUrl: string, apiKey: string) {
   }
 
   return {
+    /* ---- Queue & Conversations ---- */
+
     loadQueue(state?: string) {
       const params = new URLSearchParams();
       if (state) params.append('state', state);
@@ -51,9 +58,7 @@ export function createApiClient(baseUrl: string, apiKey: string) {
       );
     },
 
-    loadSentHistory() {
-      return fetchJson<SentHistoryResponse>('/sent-history');
-    },
+    /* ---- Drafts ---- */
 
     saveDraft(draftId: number, renderedBody: string) {
       return fetchJson<{ draft: unknown }>(`/drafts/${draftId}`, {
@@ -70,16 +75,20 @@ export function createApiClient(baseUrl: string, apiKey: string) {
       }>(`/drafts/${draftId}/approve`, { method: 'POST', body: {} });
     },
 
-    sendDraft(draftId: number) {
+    sendDraft(draftId: number, body?: string) {
       return fetchJson<{
         conversation_id: string;
         duplicate: boolean;
         state: string;
+        edited?: boolean;
+        edit_distance?: number;
       }>(`/drafts/${draftId}/send`, {
         method: 'POST',
-        body: { sent_by: 'Review UI' },
+        body: { sent_by: 'Review UI', ...(body ? { body } : {}) },
       });
     },
+
+    /* ---- Notes ---- */
 
     saveNotes(
       conversationId: string,
@@ -91,6 +100,8 @@ export function createApiClient(baseUrl: string, apiKey: string) {
         { method: 'POST', body: { notes, expected_version: expectedVersion } },
       );
     },
+
+    /* ---- Actions ---- */
 
     regenerateDraft(conversationId: string) {
       return fetchJson<{ conversation_id: string; job_id: number | null }>(
@@ -125,6 +136,37 @@ export function createApiClient(baseUrl: string, apiKey: string) {
         `/conversations/${conversationId}/booking`,
         { method: 'POST', body: { signal } },
       );
+    },
+
+    /* ---- Sent History & Dead Letters ---- */
+
+    loadSentHistory() {
+      return fetchJson<SentHistoryResponse>('/sent-history');
+    },
+
+    loadDeadLetters() {
+      return fetchJson<DeadLettersResponse>('/dead-letters');
+    },
+
+    /* ---- V1-style endpoints (batch state, booking, me) ---- */
+
+    loadBatchState() {
+      return fetchJson<BatchStateResponse>('/batch-state');
+    },
+
+    loadFreeSlots(tz: string) {
+      return fetchJson<FreeSlotsResponse>(`/free-slots?tz=${encodeURIComponent(tz)}`);
+    },
+
+    bookSlot(convId: string, startIso: string, endIso: string, prospectEmail: string, prospectName: string, persona: string) {
+      return fetchJson<BookResponse>('/book', {
+        method: 'POST',
+        body: { conv_id: convId, start_iso: startIso, end_iso: endIso, prospect_email: prospectEmail, prospect_name: prospectName, persona },
+      });
+    },
+
+    loadMe() {
+      return fetchJson<MeResponse>('/me');
     },
   };
 }
