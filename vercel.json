@@ -1,8 +1,0 @@
-{
-  "rewrites": [
-    {
-      "source": "/api/review/:path*",
-      "destination": "https://inbox-manager-v2-rebuild-production.up.railway.app/api/review/:path*"
-    }
-  ]
-}

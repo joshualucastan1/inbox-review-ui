@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useApiKey, useReviewState, useToast } from '@/lib/hooks';
-import type { Conversation, MeResponse, TabKey } from '@/lib/types';
+import type { Conversation, DeadLetter, MeResponse, TabKey } from '@/lib/types';
 import { TAB_CONFIG } from '@/lib/types';
 
 import { ConversationCard } from './conversation-card';
@@ -36,6 +36,7 @@ export function ReviewShell() {
     nudges: review.counts.nudge_due,
     needs_josh: review.counts.needs_josh,
     snoozed: review.counts.snoozed,
+    dead_letters: review.deadLetters?.length ?? 0,
     sent_history: 0,
   };
 
@@ -78,6 +79,17 @@ export function ReviewShell() {
   const handleSaveNote = (convId: string, notes: string, version: number) =>
     review.saveNote(convId, notes, version);
 
+  const handleRetry = () => {
+    if (review.tab === 'sent_history') {
+      review.loadSentHistory();
+    } else if (review.tab === 'dead_letters') {
+      review.loadDeadLetters();
+    } else {
+      review.loadQueue();
+    }
+  };
+  const statusLooksRetryable = /\b(error|failed|unexpected|unauthorized|not found|timeout|request)\b/i.test(review.status);
+
   const cardProps = {
     onSend: handleSend,
     onSaveEdit: handleSaveEdit,
@@ -112,6 +124,17 @@ export function ReviewShell() {
               </span>
               {review.me && (
                 <span className="text-xs text-zinc-600">{review.me.name}</span>
+              )}
+              {review.status && (
+                <span className="text-xs text-zinc-500">{review.status}</span>
+              )}
+              {statusLooksRetryable && (
+                <button
+                  onClick={handleRetry}
+                  className="rounded border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700 hover:bg-zinc-100"
+                >
+                  Retry
+                </button>
               )}
               <span className="ml-auto text-sm text-zinc-600">
                 {review.counts.drafted} replies &middot; {review.counts.nudge_due} follow-ups &middot; {review.counts.needs_josh} needs Josh
@@ -150,6 +173,9 @@ export function ReviewShell() {
                     if (t.key === 'sent_history' && !review.sentHistory) {
                       review.loadSentHistory();
                     }
+                    if (t.key === 'dead_letters' && !review.deadLetters) {
+                      review.loadDeadLetters();
+                    }
                   }}
                   className={`border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
                     review.tab === t.key
@@ -183,6 +209,8 @@ export function ReviewShell() {
             <div className="space-y-3">
               {review.tab === 'sent_history' ? (
                 <SentHistoryTab items={review.sentHistory} clientFilter={review.clientFilter} />
+              ) : review.tab === 'dead_letters' ? (
+                <DeadLettersTab items={review.deadLetters} />
               ) : review.tab === 'nudges' ? (
                 <FollowupsTab
                   items={review.getTabItems('nudges')}
@@ -224,6 +252,43 @@ export function ReviewShell() {
       )}
 
       <ToastHost toasts={toasts} />
+    </div>
+  );
+}
+
+function DeadLettersTab({ items }: { items: DeadLetter[] | null }) {
+  if (!items) {
+    return <p className="text-sm text-zinc-500">Loading dead letters...</p>;
+  }
+  if (!items.length) {
+    return <p className="text-sm text-zinc-500">No dead letters.</p>;
+  }
+  return (
+    <div className="overflow-hidden rounded border border-zinc-200 bg-white">
+      <table className="w-full text-left text-sm">
+        <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
+          <tr>
+            <th className="px-3 py-2">Conversation</th>
+            <th className="px-3 py-2">Transition</th>
+            <th className="px-3 py-2">Reason</th>
+            <th className="px-3 py-2">Detail</th>
+            <th className="px-3 py-2">Created</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-zinc-100">
+          {items.map((item) => (
+            <tr key={item.id}>
+              <td className="px-3 py-2 font-mono text-xs">{item.conversation_id || '-'}</td>
+              <td className="px-3 py-2">{item.from_state || '-'} {'->'} {item.to_state}</td>
+              <td className="px-3 py-2">{item.reason}</td>
+              <td className="max-w-md truncate px-3 py-2 text-zinc-600">{item.detail || '-'}</td>
+              <td className="px-3 py-2 text-zinc-500">
+                {item.created_at ? new Date(item.created_at * 1000).toLocaleString() : '-'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

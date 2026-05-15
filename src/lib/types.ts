@@ -190,13 +190,14 @@ export interface MeResponse {
 
 /* ---- Tab & UI Constants ---- */
 
-export type TabKey = 'replies' | 'nudges' | 'needs_josh' | 'snoozed' | 'sent_history';
+export type TabKey = 'replies' | 'nudges' | 'needs_josh' | 'snoozed' | 'dead_letters' | 'sent_history';
 
 export const TAB_CONFIG: { key: TabKey; label: string; apiState?: string }[] = [
   { key: 'replies', label: 'Replies', apiState: 'drafted' },
   { key: 'nudges', label: 'Follow-ups', apiState: 'nudge_due' },
   { key: 'needs_josh', label: 'Needs Josh', apiState: 'needs_josh' },
   { key: 'snoozed', label: 'Snoozed' },
+  { key: 'dead_letters', label: 'Dead Letters' },
   { key: 'sent_history', label: 'Sent History' },
 ];
 
