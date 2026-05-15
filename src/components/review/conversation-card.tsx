@@ -4,7 +4,6 @@ import { useCallback, useRef, useState } from 'react';
 import type { Conversation, MeResponse, ThreadMessage } from '@/lib/types';
 import {
   fmtRelativeWhen,
-  fmtRelativeUnix,
   simpleEditDistance,
   parseAttachmentNames,
   mentionsAttached,
@@ -190,7 +189,6 @@ export function ConversationCard({
       <NoteEditor
         notes={d.notes}
         onSave={(notes) => handleNoteSave(notes)}
-        statusMsg={statusMsg}
       />
 
       {/* ---- Action buttons ---- */}
@@ -321,11 +319,9 @@ function ThreadPreview({ thread }: { thread?: ThreadMessage[] }) {
 function NoteEditor({
   notes,
   onSave,
-  statusMsg,
 }: {
   notes: string;
   onSave: (notes: string) => void;
-  statusMsg: string;
 }) {
   const [value, setValue] = useState(notes || '');
 
