@@ -145,6 +145,12 @@ export interface DeadLettersResponse {
   offset: number;
 }
 
+export interface DeadLetterRetryResponse {
+  dead_letter_id: number;
+  conversation_id: string;
+  job_id: number | null;
+}
+
 export interface BatchRegionState {
   state: 'running' | 'completed' | 'failed' | 'never_run';
   started_at?: number;

@@ -3,6 +3,7 @@ import type {
   BookResponse,
   Conversation,
   ConversationDetailResponse,
+  DeadLetterRetryResponse,
   DeadLettersResponse,
   FreeSlotsResponse,
   MeResponse,
@@ -263,6 +264,13 @@ export function createApiClient(baseUrl: string, apiKey: string) {
 
     loadDeadLetters() {
       return fetchJson<unknown>('/dead-letters').then(normalizeDeadLetters);
+    },
+
+    retryDeadLetter(deadLetterId: number) {
+      return fetchJson<DeadLetterRetryResponse>(
+        `/dead-letters/${deadLetterId}/retry`,
+        { method: 'POST', body: {} },
+      );
     },
 
     /* ---- V1-style endpoints (batch state, booking, me) ---- */

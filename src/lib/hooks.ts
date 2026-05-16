@@ -163,6 +163,24 @@ export function useReviewState(apiKey: string) {
     }
   }, [withError]);
 
+  const retryDeadLetter = useCallback(
+    async (deadLetterId: number) => {
+      const client = clientRef.current;
+      if (!client) return null;
+      const result = await withError(
+        () => client.retryDeadLetter(deadLetterId),
+        'Retrying dead letter...',
+      );
+      if (result) {
+        setStatus(`Retry queued for ${result.conversation_id}.`);
+        await loadDeadLetters();
+        await loadQueue();
+      }
+      return result;
+    },
+    [loadDeadLetters, loadQueue, withError],
+  );
+
   const refreshBatchState = useCallback(async () => {
     const client = clientRef.current;
     if (!client) return;
@@ -400,6 +418,7 @@ export function useReviewState(apiKey: string) {
     loadQueue,
     loadSentHistory,
     loadDeadLetters,
+    retryDeadLetter,
     refreshBatchState,
     sendDraft,
     saveDraftEdit,

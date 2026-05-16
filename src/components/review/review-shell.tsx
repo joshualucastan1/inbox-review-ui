@@ -210,7 +210,7 @@ export function ReviewShell() {
               {review.tab === 'sent_history' ? (
                 <SentHistoryTab items={review.sentHistory} clientFilter={review.clientFilter} />
               ) : review.tab === 'dead_letters' ? (
-                <DeadLettersTab items={review.deadLetters} />
+                <DeadLettersTab items={review.deadLetters} onRetry={review.retryDeadLetter} />
               ) : review.tab === 'nudges' ? (
                 <FollowupsTab
                   items={review.getTabItems('nudges')}
@@ -256,7 +256,13 @@ export function ReviewShell() {
   );
 }
 
-function DeadLettersTab({ items }: { items: DeadLetter[] | null }) {
+function DeadLettersTab({
+  items,
+  onRetry,
+}: {
+  items: DeadLetter[] | null;
+  onRetry: (deadLetterId: number) => void;
+}) {
   if (!items) {
     return <p className="text-sm text-zinc-500">Loading dead letters...</p>;
   }
@@ -273,6 +279,7 @@ function DeadLettersTab({ items }: { items: DeadLetter[] | null }) {
             <th className="px-3 py-2">Reason</th>
             <th className="px-3 py-2">Detail</th>
             <th className="px-3 py-2">Created</th>
+            <th className="px-3 py-2"></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-zinc-100">
@@ -284,6 +291,18 @@ function DeadLettersTab({ items }: { items: DeadLetter[] | null }) {
               <td className="max-w-md truncate px-3 py-2 text-zinc-600">{item.detail || '-'}</td>
               <td className="px-3 py-2 text-zinc-500">
                 {item.created_at ? new Date(item.created_at * 1000).toLocaleString() : '-'}
+              </td>
+              <td className="px-3 py-2 text-right">
+                {item.conversation_id ? (
+                  <button
+                    onClick={() => onRetry(item.id)}
+                    className="rounded border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700 hover:bg-zinc-100"
+                  >
+                    Retry
+                  </button>
+                ) : (
+                  <span className="text-xs text-zinc-400">Audit only</span>
+                )}
               </td>
             </tr>
           ))}
