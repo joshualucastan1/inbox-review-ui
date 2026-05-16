@@ -218,6 +218,7 @@ export const TAB_CONFIG: { key: TabKey; label: string; apiState?: string }[] = [
 /** Map V1 tab keys to rebuild API state values */
 export const TAB_TO_API_STATE: Record<string, string> = {
   replies: 'drafted',
+  ready_to_send: 'awaiting_send',
   nudges: 'nudge_due',
   needs_josh: 'needs_josh',
 };

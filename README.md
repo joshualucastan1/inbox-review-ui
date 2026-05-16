@@ -1,6 +1,6 @@
 # Inbox Review UI
 
-Next.js review dashboard for the inbox manager. Operators use it to review generated drafts, edit body text, approve drafts into Missive, send, regenerate, archive, book slots, inspect dead letters, and inspect sent-history learning feedback.
+Next.js review dashboard for the inbox manager. Operators use it to review generated drafts, edit body text, approve drafts into Missive, send ready drafts, regenerate, archive, book slots, inspect dead letters, and inspect sent-history learning feedback.
 
 ## Local Setup
 
@@ -39,6 +39,13 @@ API_PROXY_PATH=/review/api
 
 The primary button is `Approve & Send`.
 
+Queue tabs map to the rebuild backend states:
+
+- `Replies`: generated drafts in `drafted`.
+- `Ready to Send`: approved Missive drafts in `awaiting_send`.
+- `Follow-ups`: cadence rows in `nudge_due`.
+- `Needs Josh`: safety or ambiguity holds in `needs_josh`.
+
 For the rebuild backend, that means:
 
 1. If the row is not already `awaiting_send` or has no `missive_draft_id`, call `POST /api/review/drafts/<id>/approve` to push the draft into Missive.
@@ -58,4 +65,4 @@ npm run build
 
 - Vercel should deploy from `main`.
 - Keep `API_PROXY_TARGET` pointed at the active Railway backend.
-- After a backend cutover, verify the UI can load `/api/review/queue`, approve a test draft to Missive, send only an approved internal test draft, and display Sent History plus Dead Letters.
+- After a backend cutover, verify the UI can load `/api/review/queue`, show any `awaiting_send` rows under Ready to Send, approve a test draft to Missive, send only an approved internal test draft, and display Sent History plus Dead Letters.
