@@ -38,7 +38,7 @@ export function ReviewShell() {
     needs_josh: review.counts.needs_josh,
     snoozed: review.counts.snoozed,
     dead_letters: review.deadLetters?.length ?? 0,
-    sent_history: 0,
+    sent_history: review.sentHistory?.length ?? 0,
   };
 
   /* ---- Shared card action handlers ---- */
