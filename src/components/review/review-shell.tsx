@@ -33,6 +33,7 @@ export function ReviewShell() {
 
   const tabCounts: Record<string, number> = {
     replies: review.counts.drafted,
+    ready_to_send: review.counts.awaiting_send,
     nudges: review.counts.nudge_due,
     needs_josh: review.counts.needs_josh,
     snoozed: review.counts.snoozed,
@@ -137,7 +138,7 @@ export function ReviewShell() {
                 </button>
               )}
               <span className="ml-auto text-sm text-zinc-600">
-                {review.counts.drafted} replies &middot; {review.counts.nudge_due} follow-ups &middot; {review.counts.needs_josh} needs Josh
+                {review.counts.drafted} replies &middot; {review.counts.awaiting_send} ready &middot; {review.counts.nudge_due} follow-ups &middot; {review.counts.needs_josh} needs Josh
                 {review.counts.snoozed > 0 && ` \u00B7 ${review.counts.snoozed} snoozed`}
               </span>
             </>
@@ -333,6 +334,7 @@ function CardList({
   if (!items.length) {
     const msgs: Record<string, string> = {
       replies: 'No reply drafts to review. All quiet.',
+      ready_to_send: 'No approved drafts waiting to send.',
       needs_josh: 'No conversations need your attention right now.',
       snoozed: 'No snoozed conversations.',
     };

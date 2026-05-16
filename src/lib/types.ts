@@ -196,10 +196,18 @@ export interface MeResponse {
 
 /* ---- Tab & UI Constants ---- */
 
-export type TabKey = 'replies' | 'nudges' | 'needs_josh' | 'snoozed' | 'dead_letters' | 'sent_history';
+export type TabKey =
+  | 'replies'
+  | 'ready_to_send'
+  | 'nudges'
+  | 'needs_josh'
+  | 'snoozed'
+  | 'dead_letters'
+  | 'sent_history';
 
 export const TAB_CONFIG: { key: TabKey; label: string; apiState?: string }[] = [
   { key: 'replies', label: 'Replies', apiState: 'drafted' },
+  { key: 'ready_to_send', label: 'Ready to Send', apiState: 'awaiting_send' },
   { key: 'nudges', label: 'Follow-ups', apiState: 'nudge_due' },
   { key: 'needs_josh', label: 'Needs Josh', apiState: 'needs_josh' },
   { key: 'snoozed', label: 'Snoozed' },

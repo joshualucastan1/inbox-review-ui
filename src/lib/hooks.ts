@@ -387,6 +387,7 @@ export function useReviewState(apiKey: string) {
       if (!queue) return [];
       const stateMap: Record<string, string> = {
         replies: 'drafted',
+        ready_to_send: 'awaiting_send',
         nudges: 'nudge_due',
         needs_josh: 'needs_josh',
         snoozed: 'snoozed',
