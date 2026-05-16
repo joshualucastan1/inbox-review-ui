@@ -100,6 +100,7 @@ export interface DeadLetter {
   reason: string;
   detail: string | null;
   created_at: number;
+  retryable?: boolean;
 }
 
 /* ---- API Response shapes ---- */
@@ -147,8 +148,9 @@ export interface DeadLettersResponse {
 
 export interface DeadLetterRetryResponse {
   dead_letter_id: number;
-  conversation_id: string;
+  conversation_id: string | null;
   job_id: number | null;
+  job_type?: string;
 }
 
 export interface BatchRegionState {

@@ -172,7 +172,8 @@ export function useReviewState(apiKey: string) {
         'Retrying dead letter...',
       );
       if (result) {
-        setStatus(`Retry queued for ${result.conversation_id}.`);
+        const target = result.conversation_id ?? result.job_type ?? `dead letter ${deadLetterId}`;
+        setStatus(`Retry queued for ${target}.`);
         await loadDeadLetters();
         await loadQueue();
       }

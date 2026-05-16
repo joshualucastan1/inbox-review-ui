@@ -294,7 +294,7 @@ function DeadLettersTab({
                 {item.created_at ? new Date(item.created_at * 1000).toLocaleString() : '-'}
               </td>
               <td className="px-3 py-2 text-right">
-                {item.conversation_id ? (
+                {item.retryable || item.conversation_id ? (
                   <button
                     onClick={() => onRetry(item.id)}
                     className="rounded border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-700 hover:bg-zinc-100"
