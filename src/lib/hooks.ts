@@ -191,6 +191,33 @@ export function useReviewState(apiKey: string) {
     async (convId: string, draftId: number, body?: string) => {
       const client = clientRef.current;
       if (!client) return null;
+      const conversation = queue
+        ? Object.values(queue.groups)
+            .flat()
+            .find((item) => item.id === convId)
+        : null;
+      const draft = conversation?.current_draft;
+      const needsMissiveApproval =
+        !conversation ||
+        conversation.state !== 'awaiting_send' ||
+        !draft?.missive_draft_id;
+      if (needsMissiveApproval) {
+        setStatus('Approving draft in Missive...');
+        try {
+          await client.approveDraft(draftId);
+        } catch (err) {
+          if (err instanceof ApiError && err.status === 404) {
+            // Legacy monolith deployments send directly from /send.
+          } else {
+            if (err instanceof ApiError) {
+              setStatus(err.message);
+            } else {
+              setStatus('An unexpected error occurred.');
+            }
+            return null;
+          }
+        }
+      }
       const result = await withError(
         () => client.sendDraft(draftId, body),
         'Sending...',
@@ -200,7 +227,7 @@ export function useReviewState(apiKey: string) {
       }
       return result;
     },
-    [loadQueue, withError],
+    [loadQueue, queue, withError],
   );
 
   const saveDraftEdit = useCallback(
