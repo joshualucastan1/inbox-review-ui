@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Inbox Review UI
 
-## Getting Started
+Next.js review dashboard for the inbox manager. Operators use it to review generated drafts, edit body text, approve drafts into Missive, send, regenerate, archive, book slots, inspect dead letters, and inspect sent-history learning feedback.
 
-First, run the development server:
+## Local Setup
 
 ```bash
+npm install
+cp .env.local.example .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000/?t=<REVIEW_API_KEY>`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Backend Proxy
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The UI defaults browser API calls to `/api/review`. `next.config.ts` rewrites that path to the Flask backend when `API_PROXY_TARGET` is set.
 
-## Learn More
+Required Vercel/local env:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+API_PROXY_TARGET=https://inbox-manager-v2-rebuild-production.up.railway.app
+API_PROXY_PATH=/api/review
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Optional browser override:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+NEXT_PUBLIC_API_BASE_URL=/api/review
+```
 
-## Deploy on Vercel
+For the legacy audit monolith backend, use:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+API_PROXY_PATH=/review/api
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Review Send Flow
+
+The primary button is `Approve & Send`.
+
+For the rebuild backend, that means:
+
+1. If the row is not already `awaiting_send` or has no `missive_draft_id`, call `POST /api/review/drafts/<id>/approve` to push the draft into Missive.
+2. Call `POST /api/review/drafts/<id>/send`.
+3. Include the current textarea body so the final operator edit is what Missive sends and what the backend captures in `sent_drafts` / learning feedback.
+
+If the approve endpoint returns `404`, the UI falls back to the legacy monolith direct-send path. Other approval errors stop the send.
+
+## Verification
+
+```bash
+npm run lint
+npm run build
+```
+
+## Deployment Notes
+
+- Vercel should deploy from `main`.
+- Keep `API_PROXY_TARGET` pointed at the active Railway backend.
+- After a backend cutover, verify the UI can load `/api/review/queue`, approve a test draft to Missive, send only an approved internal test draft, and display Sent History plus Dead Letters.
