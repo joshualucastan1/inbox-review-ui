@@ -252,12 +252,15 @@ export function useReviewState(apiKey: string) {
   const saveDraftEdit = useCallback(
     async (draftId: number, body: string) => {
       const client = clientRef.current;
-      if (!client) return;
-      await withError(
+      if (!client) return null;
+      const result = await withError(
         () => client.saveDraft(draftId, body),
         'Saving edit...',
       );
-      setStatus('Edit saved.');
+      if (result) {
+        setStatus('Edit saved.');
+      }
+      return result;
     },
     [withError],
   );
@@ -265,12 +268,15 @@ export function useReviewState(apiKey: string) {
   const regenerateDraft = useCallback(
     async (convId: string) => {
       const client = clientRef.current;
-      if (!client) return;
-      await withError(
+      if (!client) return null;
+      const result = await withError(
         () => client.regenerateDraft(convId),
         'Regenerating...',
       );
-      setStatus('Regen kicked off — refresh in 60s.');
+      if (result) {
+        setStatus('Regen kicked off — refresh in 60s.');
+      }
+      return result;
     },
     [withError],
   );
@@ -278,12 +284,15 @@ export function useReviewState(apiKey: string) {
   const archiveConversation = useCallback(
     async (convId: string) => {
       const client = clientRef.current;
-      if (!client) return;
-      await withError(
+      if (!client) return null;
+      const result = await withError(
         () => client.archiveConversation(convId),
         'Archiving...',
       );
-      await loadQueue();
+      if (result) {
+        await loadQueue();
+      }
+      return result;
     },
     [loadQueue, withError],
   );
@@ -291,12 +300,15 @@ export function useReviewState(apiKey: string) {
   const saveNote = useCallback(
     async (convId: string, notes: string, version: number) => {
       const client = clientRef.current;
-      if (!client) return;
-      await withError(
+      if (!client) return null;
+      const result = await withError(
         () => client.saveNotes(convId, notes, version),
         'Saving note...',
       );
-      setStatus('Note saved.');
+      if (result) {
+        setStatus('Note saved.');
+      }
+      return result;
     },
     [withError],
   );
@@ -304,12 +316,15 @@ export function useReviewState(apiKey: string) {
   const assignConversation = useCallback(
     async (convId: string, userId: number | null) => {
       const client = clientRef.current;
-      if (!client) return;
-      await withError(
+      if (!client) return null;
+      const result = await withError(
         () => client.assignConversation(convId, userId),
         'Assigning...',
       );
-      await loadQueue();
+      if (result) {
+        await loadQueue();
+      }
+      return result;
     },
     [loadQueue, withError],
   );

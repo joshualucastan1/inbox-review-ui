@@ -56,29 +56,33 @@ export function ReviewShell() {
     });
   };
 
-  const handleSaveEdit = (draftId: number, body: string) => {
-    review.saveDraftEdit(draftId, body);
-    addToast('Edit saved', 'ok');
+  const handleSaveEdit = async (draftId: number, body: string) => {
+    const result = await review.saveDraftEdit(draftId, body);
+    addToast(result ? 'Edit saved' : 'Edit failed', result ? 'ok' : 'err');
   };
 
-  const handleRegen = (convId: string) => {
-    review.regenerateDraft(convId);
-    addToast('Regen kicked off — refresh in 60s');
+  const handleRegen = async (convId: string) => {
+    const result = await review.regenerateDraft(convId);
+    addToast(result ? 'Regen kicked off — refresh in 60s' : 'Regen failed', result ? 'ok' : 'err');
   };
 
-  const handleArchive = (convId: string) => {
-    review.archiveConversation(convId);
-    addToast('Archived', 'ok');
+  const handleArchive = async (convId: string) => {
+    const result = await review.archiveConversation(convId);
+    addToast(result ? 'Archived' : 'Archive failed', result ? 'ok' : 'err');
   };
 
   const handleBook = (convId: string, email: string, name: string, persona: string, tz: string) =>
     setBookingTarget({ convId, email, name, persona, tz });
 
-  const handleAssign = (convId: string, userId: number | null) =>
-    review.assignConversation(convId, userId);
+  const handleAssign = async (convId: string, userId: number | null) => {
+    const result = await review.assignConversation(convId, userId);
+    if (!result) addToast('Assign failed', 'err');
+  };
 
-  const handleSaveNote = (convId: string, notes: string, version: number) =>
-    review.saveNote(convId, notes, version);
+  const handleSaveNote = async (convId: string, notes: string, version: number) => {
+    const result = await review.saveNote(convId, notes, version);
+    addToast(result ? 'Note saved' : 'Note failed', result ? 'ok' : 'err');
+  };
 
   const handleRetry = () => {
     if (review.tab === 'sent_history') {
